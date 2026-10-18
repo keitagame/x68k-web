@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>x68k</title>
+    <meta name="google-site-verification" content="OqgslQ_J8iWJAIHNrUEFIqdcS4bcZUH_BHzA6h2yJAw" />
+    <meta name="viewport" content="width=1300" />
+    <meta property="og:title" content="X68000">
+    <meta property="og:description" content="ブラウザ上のX68000">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="X68K">
+    <meta name="twitter:title" content="X68K">
+    <link rel="icon" href="/favicon.png" type="image/png">
+    <meta name="twitter:description" content="ブラウザ上で動作するX68000エミュレータ">
+     <style>
+      :root {
+        color-scheme: light dark;
+      }
+      @font-face {
+        font-family: "Renner";
+        src: url("https://keitagames.com/x68k/Renner.ttf") format("truetype");
+        font-display: swap;
+      }
+      body {
+        background: rgb(0, 0, 0);
+        color: rgb(255, 255, 255);
+        font-family: "Renner", "Hiragino Sans", "Yu Gothic", sans-serif;
+        margin: 0;
+        padding: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+      }
+      h1 {
+        font-weight: 300;
+        font-size: 25px;
+      }
+      header {
+        scrollbar-width: none; 
+  
+  /* IE・旧Edge 向けの指定 */
+  -ms-overflow-style: none; 
+        overflow-x: auto;       /* 横方向にはみ出た場合のみスクロールバーを表示 */
+  overflow-y: hidden;     /* 縦方向のスクロールを完全に禁止・非表示にする */
+        
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 12px;
+        padding: 0 12px;
+      }
+      /* 既存の「header button」をこれに書き換えます */
+header > * {
+  flex-shrink: 0;  /* ❗最重要：ボタン、セレクトボックス、ラベルのすべてを縮ませず、1行に強制横並びします */
+}
+
+
+      canvas {
+        aspect-ratio: 3 / 2; /* 実際の比率はJSが画面モードに合わせて更新する */
+        border: 1px solid #000000;
+        background: #000;
+        outline: none;
+        image-rendering: pixelated;
+      }
+      canvas:focus {
+        border-color: #333;
+      }
+      canvas.drop {
+        border-color: #fff;
+      }
+      .row {
+        padding-top: 0px;
+        flex: 1;
+        min-height: 0;
+        justify-content: center;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        background: #000;
+      }
+      .row:fullscreen {
+        height: 100vh;
+      }
+      #screenWrap {
+        position: relative;
+        display: flex;
+        line-height: 0;
+      }
+      #scanlines {
+        position: absolute;
+        inset: 1px;
+        pointer-events: none;
+        display: none;
+        background:
+          repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,0.28) 3px, rgba(0,0,0,0) 4px),
+          radial-gradient(ellipse at center, rgba(0,0,0,0) 60%, rgba(0,0,0,0.35) 100%);
+      }
+      #scanlines.on { display: block; }
+      .mono {
+        font-size: 20px;
+      }
+      button,
+      select,
+      .file-label {
+        font-family: "Renner", "Hiragino Sans", "Yu Gothic", sans-serif;
+        padding: 10px 16px;
+        background: rgb(0, 0, 0);
+        color: rgb(255, 255, 255);
+        border: 1px solid rgb(255, 255, 255);
+        border-radius: 0px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      select {
+        padding: 10px 8px;
+      }
+      button:hover,
+      .file-label:hover {
+        background: #222;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .file-label {
+        display: inline-block;
+      }
+      .file-label.reading {
+        border-color: #ff3b3b !important;
+        
+       
+        transition: none;
+      }
+      .file-input {
+        display: none; /* 本体は隠す */
+      }
+      #status {
+        flex: none;
+        padding: 4px 12px;
+        font-size: 14px;
+        opacity: 0.7;
+        min-height: 1.4em;
+        white-space: pre-wrap;
+      }
+      #status.error {
+        color: #ff8e8e;
+        opacity: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>X68000</h1>
+
+      <select id="model" title="CPUクロック(切り替えると再起動します)">
+        <option value="x68000">CPU 10MHz</option>
+        <option value="xvi">CPU 16MHz</option>
+        <option value="x68030">CPU 25MHz</option>
+      </select>
+
+      <div><button id="official" title="同梱のSharp公式IPLとHuman68k 3.02で(再)起動">Human68k</button></div>
+      <label class="file-label" id="label-fdd0" title="FDD0にディスクを選択">
+        FDD0
+        <input data-drive="fdd0" type="file" class="file-input media-input"
+          accept=".hdm,.xdf,.2hd,.dim,.d88,.88d">
+      </label>
+      <label class="file-label" id="label-fdd1" title="FDD1にディスクを選択">
+        FDD1
+        <input data-drive="fdd1" type="file" class="file-input media-input"
+          accept=".hdm,.xdf,.2hd,.dim,.d88,.88d">
+      </label>
+      <label class="file-label" id="label-fdd2" title="FDD2にディスクを選択">
+        FDD2
+        <input data-drive="fdd2" type="file" class="file-input media-input"
+          accept=".hdm,.xdf,.2hd,.dim,.d88,.88d">
+      </label>
+      <label class="file-label" id="label-fdd3" title="FDD3にディスクを選択">
+        FDD3
+        <input data-drive="fdd3" type="file" class="file-input media-input"
+          accept=".hdm,.xdf,.2hd,.dim,.d88,.88d">
+      </label>
+      <label class="file-label" id="label-hdd0" title="HDD0にハードディスクを選択(接続すると再起動します)">
+        HDD
+        <input data-drive="hdd0" type="file" class="file-input media-input"
+          accept=".hdf">
+      </label>
+      <label class="file-label" title="ステート(.x68state)を読み込む">
+        State
+        <input id="stateFile" type="file" class="file-input" accept=".x68state">
+      </label>
+
+      <label class="file-label" title="IPL ROMを差し替える(同梱ROMは ?resetrom で復元)">
+        Load IPL
+        <input id="ipl" type="file" class="file-input" accept=".dat,.rom,.bin">
+      </label>
+      <label class="file-label" title="CGROMを差し替える(同梱ROMは ?resetrom で復元)">
+        Load CGROM
+        <input id="cgrom" type="file" class="file-input" accept=".dat,.rom,.bin">
+      </label>
+
+      <span style="display:none" id="file-name"></span>
+      
+      <button id="saveDisk" title="FDD0の内容をファイルへ書き出す">Save Disk</button>
+      <button id="saveState">Save State</button>
+      <button id="loadState">Load State</button>
+      <button id="crt">CRT</button>
+      <button id="netBtn" title="RS-232Cの仮想モデム。クリックで接続先を入力/切断 (ゲストからは ATDT host:port)">Net</button>
+      
+      
+      
+      <button id="keyJoy" title="矢印/テンキー/WASD=十字キー, Z/Space/Enter=A, X=B をジョイスティックとしても送る。クリックでPort1→Port2→OFF">Key→Joy: Port1</button>
+      <button id="fullscreenBtn">Fullscreen</button>
+      <button id="reset">Reset</button>
+      <button id="start">Pause</button>
+      <span class="mono">FPS:</span> <span id="pc" class="mono">--</span>
+    </header>
+
+    <div class="row" id="stage">
+      <div id="screenWrap"><canvas id="screen" width="768" height="512" tabindex="0"></canvas><div id="scanlines"></div></div>
+    </div>
+    <div id="status">準備中…</div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
